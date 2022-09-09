@@ -56,6 +56,7 @@ final class ChatPresenter: ChatPresenterProtocol {
                 self.countOfTryings -= 1
                 if self.countOfTryings < 1 {
                     view.getError()
+                    self.offset -= 20
                     return
                 }
 

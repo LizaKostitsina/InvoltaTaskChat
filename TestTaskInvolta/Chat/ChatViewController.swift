@@ -16,9 +16,8 @@ protocol ChatViewProtocol: AnyObject {
 
 final class ChatViewController: UIViewController {
 
-    // MARK: - Properties
-    var didGetError: Bool = false
     // MARK: - Private properties
+    private var canShowAlert: Bool = false
     private var presenter: ChatPresenterProtocol
     /// Таблица с сообщениями
     private lazy var mainTableView: UITableView = {
@@ -103,6 +102,13 @@ final class ChatViewController: UIViewController {
         ])
     }
 
+    /// Показывает алерт с ошибкой соединения
+    private func showAlertWithError() {
+        let alert = UIAlertController(title: "Error", message: "Connection problems. Try again later", preferredStyle: UIAlertController.Style.alert)
+        alert.addAction(UIAlertAction(title: "Ok", style: UIAlertAction.Style.default, handler: nil))
+        self.present(alert, animated: true, completion: nil)
+    }
+
     /// Нотификация о нажатии на кнопку обновления
     @objc func didTapOnUpdateButton() {
         presenter.didTapOnUpdateButton()
@@ -131,18 +137,22 @@ extension ChatViewController: UITableViewDelegate, UITableViewDataSource {
 extension ChatViewController: UIScrollViewDelegate {
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        if scrollView.panGestureRecognizer.translation(in: scrollView.superview).y < 0 {
-            mainTableView.tableFooterView?.isHidden = true
-            return
-        } else if didGetError {
+        let position = scrollView.contentOffset.y
+        if position > (mainTableView.contentSize.height - 10 - scrollView.frame.size.height) {
+            canShowAlert = true
             mainTableView.tableFooterView?.isHidden = false
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                 self.mainTableView.tableFooterView?.isHidden = true
             }
+        } else {
+            canShowAlert = false
+        }
+
+        if scrollView.panGestureRecognizer.translation(in: scrollView.superview).y < 0 {
+            mainTableView.tableFooterView?.isHidden = true
             return
         }
 
-        let position = scrollView.contentOffset.y
         if position > (mainTableView.contentSize.height - 300 - scrollView.frame.size.height) {
             mainTableView.tableFooterView?.isHidden = false
             presenter.viewDidScrollToEnd()
@@ -152,18 +162,20 @@ extension ChatViewController: UIScrollViewDelegate {
 
 extension ChatViewController: ChatViewProtocol {
     func getError() {
-        let alert = UIAlertController(title: "Error", message: "Connection problems. Try again later", preferredStyle: UIAlertController.Style.alert)
-        alert.addAction(UIAlertAction(title: "Ok", style: UIAlertAction.Style.default, handler: nil))
-        self.present(alert, animated: true, completion: nil)
-        mainTableView.tableFooterView?.isHidden = true
         if presenter.messages.isEmpty {
+            showAlertWithError()
             setupUpdateState()
+            return
         }
-        didGetError = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            self.mainTableView.tableFooterView?.isHidden = true
+        }
+        if canShowAlert {
+            showAlertWithError()
+        }
     }
 
     func updateState() {
-        didGetError = false
         updateButton.isHidden = true
         mainTableView.tableFooterView?.isHidden = true
         mainTableView.reloadData()
